@@ -5,6 +5,7 @@
 ## 데모 영상
 
 [YouTube 데모 영상 보기](https://youtu.be/11gIdRGt-ws)
+[blog](https://blog.naver.com/leepl37)
 
 ## 주요 기능
 
@@ -91,7 +92,7 @@ flowchart TD
 
 ## 기술 스택
 
-- 프론트엔드: React, TypeScript, Vite
+- 프론트엔드: TypeScript
 - 백엔드: FastAPI, WebSocket
 - 영상: WebRTC
 - 로봇 연동: ROS2, rclpy, Docker
