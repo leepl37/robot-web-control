@@ -4,8 +4,10 @@
 
 ## 데모 영상
 
-[YouTube 데모 영상 보기](https://youtu.be/11gIdRGt-ws)
-[blog](https://blog.naver.com/leepl37)
+- [YouTube 데모 영상 보기](https://youtu.be/11gIdRGt-ws)
+
+
+- [blog](https://blog.naver.com/leepl37)
 
 ## 주요 기능
 
