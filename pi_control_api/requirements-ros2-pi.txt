@@ -1,0 +1,6 @@
+# Pi에서 YAHBOOM_BACKEND=rclpy 쓸 때(선택). 대부분 apt 로 설치:
+#   sudo apt update && sudo apt install -y ros-humble-rclpy ros-humble-geometry-msgs \
+#     ros-humble-std-msgs ros-humble-sensor-msgs
+# 그 다음: source /opt/ros/humble/setup.bash
+# (venv 쓰면) python3 -m venv .venv --system-site-packages
+# pip에는 보통 rclpy를 박지 말고 시스템 ROS 패키지를 쓰는 것이 안정적임.

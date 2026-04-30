@@ -1,0 +1,5 @@
+aiortc
+websockets
+opencv-python-headless
+av
+numpy

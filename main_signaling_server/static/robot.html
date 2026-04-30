@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>로봇 API 테스트 (메인 → Pi 프록시)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 56rem; margin: 1rem auto; padding: 0.5rem 1rem; }
+    pre { background: #f0f0f0; padding: 0.75rem; overflow: auto; max-height: 12rem; }
+    button { margin: 0.25rem; min-width: 3.2rem; padding: 0.4rem 0.6rem; }
+    h2 { margin-top: 1.5rem; font-size: 1.1rem; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+    .pad { display: inline-grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem; }
+    .pad .span3 { grid-column: 1 / -1; }
+    .num { width: 4.5em; }
+    .hint { color: #555; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h1>ROBOT_API_BASE 프록시 테스트</h1>
+  <p>메인에 Pi 주소(예) <code>ROBOT_API_BASE=http://192.168.219.108:8080</code> (또는 <code>run_server.sh</code> 기본)</p>
+  <p><a href="/">← WebRTC 뷰어</a> · <a href="/static/robot.html">새로고침</a></p>
+
+  <h2>바퀴</h2>
+  <p id="healthLine" class="hint">(로봇 상태 불러오는 중…)</p>
+  <p class="hint">바퀴: Pi <code>POST /motors/jog</code> = <code>wheel_test.sh</code> 처럼 <strong>한 HTTP로 N초</strong> 20Hz cmd_vel. Docker 백엔드면 <strong>응답이 N초 뒤</strong> 올 수 있어요(정상). (mock·MOTOR_DRIVER=mock 이면 실제 바퀴는 안 감.)</p>
+  <p class="row">
+    <label>앞/뒤 m/s <input class="num" type="number" id="wLin" value="0.18" step="0.02" min="0" max="1" /></label>
+    <label>회전 rad/s <input class="num" type="number" id="wAng" value="0.35" step="0.05" min="0" max="1" /></label>
+    <label>jog(초) <input class="num" type="number" id="jogSec" value="0.8" step="0.1" min="0.15" max="3" /></label>
+  </p>
+  <div class="pad" id="wheelPad">
+    <span></span>
+    <button type="button" class="w-jog" data-dir="forward" title="앞">앞 ▲</button>
+    <span></span>
+    <button type="button" class="w-jog" data-dir="left" title="왼쪽 회전 (wheel_test left)">왼쪽 ◀</button>
+    <button type="button" id="bStop" title="정지 (cmd_vel 0)">정지 ■</button>
+    <button type="button" class="w-jog" data-dir="right" title="오른쪽 회전 (wheel_test right)">오른쪽 ▶</button>
+    <span></span>
+    <button type="button" class="w-jog" data-dir="back" title="뒤">뒤 ▼</button>
+    <span></span>
+  </div>
+
+  <h2>카메라 상하·좌우 (PTZ)</h2>
+  <p class="hint">서보 매핑: <code>servo_s1=좌우(pan)</code>, <code>servo_s2=상하(tilt)</code>. 버튼 한 번은 한 축만 보내도록 줄여 지연을 낮춤.</p>
+  <p class="row">
+    <label>이동 한 번당 (도) <input class="num" type="number" id="pStep" value="5" step="1" min="1" max="45" /></label>
+    <button type="button" id="bPtzState">PTZ / 카메라 상태</button>
+  </p>
+  <p class="hint">PTZ도 <code>mock</code>이면 서보는 안 돕니다 — <code>PTZ_DRIVER=yahboom</code></p>
+  <p class="row">
+    <button type="button" id="bPulseF">전진 jog 0.5초(테스트)</button>
+  </p>
+  <div class="pad" id="ptzPad">
+    <span></span>
+    <button type="button" class="p-nudge" data-dp="0" data-dl="1" title="카메라 위(틸트)">위 ▲</button>
+    <span></span>
+    <button type="button" class="p-nudge" data-dp="1" data-dl="0" title="왼쪽(팬)">왼쪽 ◀</button>
+    <span style="text-align:center;font-size:0.8rem;align-self:center">°</span>
+    <button type="button" class="p-nudge" data-dp="-1" data-dl="0" title="오른쪽(팬)">오른쪽 ▶</button>
+    <span></span>
+    <button type="button" class="p-nudge" data-dp="0" data-dl="-1" title="카메라 아래(틸트)">아래 ▼</button>
+    <span></span>
+  </div>
+
+  <h2>빠른 API 테스트</h2>
+  <p>
+    <button type="button" id="bHealth">GET /api/robot/health</button>
+    <button type="button" id="bImu">GET /api/robot/sensors/imu</button>
+    <button type="button" id="bLidar">GET /api/robot/sensors/lidar/scan</button>
+    <button type="button" id="bPtzZero">PTZ (0,0) 절대</button>
+    <button type="button" id="bStatus">GET /api/robot/_proxy_status</button>
+  </p>
+  <h2>응답 (HTTP 상태 포함)</h2>
+  <pre id="out">(없음)</pre>
+  <h2>WebSocket (Pi로 직접)</h2>
+  <p>연속 IMU/라이다는 메인이 아닌 <strong>Pi:8080</strong> WebSocket.</p>
+  <p><code>ws://&lt;Pi-IP&gt;:8080/ws/telemetry</code> — <button type="button" id="bWs">연결</button></p>
+  <input type="text" id="piIp" value="192.168.219.108" placeholder="192.168.219.108" style="width: 12em" />
+  <pre id="wsout">(WebSocket 없음)</pre>
+  <script>
+    const out = (t) => { document.getElementById('out').textContent = typeof t === 'string' ? t : JSON.stringify(t, null, 2); };
+    const scheme = () => (location.protocol === 'https:' ? 'wss' : 'ws');
+    // file://로 열었을 때: 메인 서버(기본 8000)로 붙이기. 같은 호스트에선 상대 경로
+    const ORIGIN = (location.protocol === 'file:')
+      ? (window.ROBOT_PAGE_API_ORIGIN || 'http://127.0.0.1:8000')
+      : '';
+    const rapi = (p) => (ORIGIN + '/api/robot' + p).replace(/([^:])\/\//g, '$1/');
+
+    function postJson(path, body, signal) {
+      const o = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+      if (signal) o.signal = signal;
+      return fetch(rapi(path), o);
+    }
+    function getText(path, signal) {
+      const o = {};
+      if (signal) o.signal = signal;
+      return fetch(rapi(path), o);
+    }
+
+    function showRes(r, text, note) {
+      const st = (r && typeof r.status === 'number') ? r.status : '—';
+      const okf = (r && typeof r.ok === 'boolean' && r.ok) ? 'OK' : 'ERR';
+      const head = (st !== '—' ? 'HTTP ' + st + ' ' + okf : '') + (note ? ' — ' + note : '') + '\n';
+      out((head + (text || '')).slice(0, 8000));
+    }
+
+    let stopAc = null;
+    async function doStop() {
+      if (stopAc) { try { stopAc.abort(); } catch (_) { /* */ } }
+      stopAc = new AbortController();
+      const r = await postJson('/motors/stop', {}, stopAc.signal);
+      const t = await r.text();
+      return { r, t };
+    }
+
+    function readWheelSpeeds() {
+      const linear = Math.abs(parseFloat(document.getElementById('wLin').value) || 0.18);
+      const ang = Math.abs(parseFloat(document.getElementById('wAng').value) || 0.35);
+      return { linear, ang };
+    }
+
+    let lastJogAt = 0;
+    function sendJog(dir, secOverride) {
+      const d = (dir || '').toLowerCase();
+      const { linear, ang } = readWheelSpeeds();
+      const sec = secOverride != null
+        ? secOverride
+        : (parseFloat(document.getElementById('jogSec').value) || 0.7);
+      const now = Date.now();
+      if (now - lastJogAt < 500 && secOverride == null) {
+        out('0.5초 안에 다시 누름 — 조금 쉬었다가 (큐/중복 방지)');
+        return;
+      }
+      lastJogAt = now;
+      out('요청 전송: motors/jog ' + d + ' ... 응답 대기 중');
+      postJson('/motors/jog', {
+        dir: d,
+        seconds: Math.min(3, Math.max(0.15, sec)),
+        linear_m_s: linear,
+        angular_rad_s: ang
+      })
+        .then(async (r) => { showRes(r, await r.text(), 'motors/jog ' + d); })
+        .catch((e) => out(String(e)));
+    }
+
+    document.getElementById('bStop').onclick = () => {
+      doStop().then(({ r, t }) => { showRes(r, t, 'stop(정지)'); });
+    };
+
+    for (const el of document.querySelectorAll('.w-jog')) {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        sendJog(el.dataset.dir);
+      });
+    }
+
+    document.getElementById('bPulseF').onclick = () => { sendJog('forward', 0.5); };
+
+    function ptzStep() {
+      return Math.abs(parseFloat(document.getElementById('pStep').value) || 5);
+    }
+    for (const el of document.querySelectorAll('.p-nudge')) {
+      el.onclick = () => {
+        const s = ptzStep();
+        const dPan = s * (parseInt(el.dataset.dp, 10) || 0);
+        const dTilt = s * (parseInt(el.dataset.dl, 10) || 0);
+        out('요청 전송: ptz/delta pan=' + dPan + ', tilt=' + dTilt + ' ... 응답 대기 중');
+        postJson('/ptz/delta', { d_pan: dPan, d_tilt: dTilt, d_height: 0 })
+          .then(async (r) => { const t = await r.text(); showRes(r, t, 'ptz/delta'); })
+          .catch((e) => out(String(e)));
+      };
+    }
+    document.getElementById('bPtzState').onclick = () => {
+      Promise.all([getText('/ptz/state'), getText('/camera/state')]).then(async ([a, b]) => {
+        const sa = await a.text();
+        const sb = await b.text();
+        out('GET ptz: HTTP ' + a.status + '\n' + sa + '\n\nGET camera: HTTP ' + b.status + '\n' + sb);
+      }).catch((e) => out(String(e)));
+    };
+
+    function refreshHealth() {
+      fetch(rapi('/health'))
+        .then((r) => r.json().catch(() => ({})))
+        .then((h) => {
+          const m = h.mock_hardware ? ' (mock: 실기구동 아님)' : ' (하드) ';
+          const md = h.motor_driver || '?';
+          const pz = h.ptz_driver || '?';
+          document.getElementById('healthLine').textContent =
+            'Pi /health: motor=' + md + ', ptz=' + pz + m;
+        })
+        .catch(() => { document.getElementById('healthLine').textContent = 'Pi /health 읽기 실패 — 메인 URL로 이 페이지를 열었는지, ROBOT_API_BASE 확인.'; });
+    }
+    refreshHealth();
+
+    document.getElementById('bHealth').onclick = () => getText('/health').then(async (r) => showRes(r, await r.text(), 'GET health'));
+    document.getElementById('bImu').onclick = () => getText('/sensors/imu').then(async (r) => showRes(r, await r.text(), 'imu'));
+    document.getElementById('bLidar').onclick = () => getText('/sensors/lidar/scan').then(async (r) => showRes(r, await r.text(), 'lidar'));
+    document.getElementById('bPtzZero').onclick = () => postJson('/ptz/absolute', { pan_deg: 0, tilt_deg: 0, height_mm: null })
+      .then(async (r) => showRes(r, await r.text(), 'ptz abs'));
+    document.getElementById('bStatus').onclick = () => getText('/_proxy_status').then(async (r) => showRes(r, await r.text(), 'proxy'));
+    let sock = null;
+    document.getElementById('bWs').onclick = () => {
+      const ip = (document.getElementById('piIp').value || '').trim();
+      if (!ip) { out('Pi IP를 입력하세요'); return; }
+      if (sock) { sock.close(); sock = null; }
+      const u = scheme() + '://' + ip + ':8080/ws/telemetry';
+      const o = document.getElementById('wsout');
+      sock = new WebSocket(u);
+      o.textContent = '연결 시도: ' + u;
+      sock.onmessage = (ev) => { o.textContent = ev.data.slice(0, 2000) + (ev.data.length > 2000 ? '…' : ''); };
+      sock.onerror = () => { o.textContent += '\n[error]'; };
+      sock.onclose = () => { o.textContent += '\n[closed]'; };
+    };
+  </script>
+</body>
+</html>
