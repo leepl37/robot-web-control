@@ -4,11 +4,7 @@
 
 ## 데모 영상
 
-YouTube 영상 링크를 여기에 추가할 예정입니다.
-
-```text
-TODO: YouTube 데모 영상 링크
-```
+[YouTube 데모 영상 보기](https://youtu.be/11gIdRGt-ws)
 
 ## 주요 기능
 
